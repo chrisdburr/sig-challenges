@@ -657,3 +657,36 @@ footer {
     width: 67px;
   }
 }
+
+/* Loading Indicator Styles */
+.loading-container {
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.loading-container .spinner-border {
+  opacity: 0.8;
+}
+
+.loading-container .progress {
+  border-radius: 10px;
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.loading-container .progress-bar {
+  border-radius: 10px;
+  transition: width 0.3s ease;
+}
+
+#loadingStatus {
+  min-height: 20px;
+  margin-bottom: 15px;
+}
+
+/* Card section fade-in */
+.card-section {
+  transition: opacity 0.5s ease-in;
+}

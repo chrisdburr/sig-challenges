@@ -1,2 +1,6 @@
 .DS_Store
 CLAUDE.md
+.env
+*.backup
+node_modules/
+*-demo.html

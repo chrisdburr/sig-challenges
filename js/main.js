@@ -18,23 +18,116 @@ class CardReader {
     // Fetch the Data as ASYNC 
     async fetchData() {
         try {
-            // Fetch JSON data
+            // Start loading indicator
+            if (window.loadingManager) {
+                window.loadingManager.startLoading();
+                window.loadingManager.initializingSupabase();
+            }
+            
+            // Wait for Supabase to initialize
+            await this.waitForSupabase();
+            
+            // Try to fetch from Supabase first
+            if (window.supabaseManager && window.supabaseManager.supabase) {
+                if (window.loadingManager) {
+                    window.loadingManager.fetchingChallenges();
+                }
+                
+                console.log('Fetching challenges from Supabase...');
+                const result = await window.supabaseManager.fetchChallenges();
+                
+                if (result.success) {
+                    this.jsonData = result.data;
+                    console.log(`✅ Loaded ${this.jsonData.length} challenges from Supabase`);
+                    
+                    // Fetch capabilities for each challenge
+                    if (window.loadingManager) {
+                        window.loadingManager.fetchingCapabilities();
+                    }
+                    await this.fetchChallengeCapabilities();
+                } else {
+                    console.warn('Failed to fetch from Supabase, falling back to JSON:', result.error);
+                    if (window.loadingManager) {
+                        window.loadingManager.updateProgress(1, 'Falling back to local data...');
+                    }
+                    await this.fetchFromJSON();
+                }
+            } else {
+                console.warn('Supabase not available, falling back to JSON');
+                if (window.loadingManager) {
+                    window.loadingManager.updateProgress(1, 'Loading from local files...');
+                }
+                await this.fetchFromJSON();
+            }
+            
+            // Always fetch capabilities from JSON (could be migrated later)
+            await this.fetchCapabilities();
+            
+        } catch (error) {
+            console.error('Error in fetchData:', error);
+            if (window.loadingManager) {
+                window.loadingManager.showError('Error loading data, using fallback');
+            }
+            await this.fetchFromJSON(); // Final fallback
+        }
+    }
+    
+    // Fallback method to fetch from JSON
+    async fetchFromJSON() {
+        try {
             const response = await fetch(this.jsonURL);
             const data = await response.json();
-            // Handle new data structure format - data.challenges instead of array
             this.jsonData = data.challenges || data;
-            
-            // Fetch capabilities data
-            try {
-                const capResponse = await fetch('capabilities.json');
-                const capData = await capResponse.json();
-                this.capabilities = capData.capabilities || [];
-            } catch (capError) {
-                console.error('Error fetching or parsing capabilities data:', capError);
-            }
+            console.log(`✅ Loaded ${this.jsonData.length} challenges from JSON fallback`);
         } catch (error) {
-            console.error('Error fetching or parsing JSON:', error);
+            console.error('Error fetching from JSON:', error);
+            this.jsonData = [];
         }
+    }
+    
+    // Fetch capabilities data
+    async fetchCapabilities() {
+        try {
+            const capResponse = await fetch('capabilities.json');
+            const capData = await capResponse.json();
+            this.capabilities = capData.capabilities || [];
+        } catch (capError) {
+            console.error('Error fetching capabilities data:', capError);
+            this.capabilities = [];
+        }
+    }
+    
+    // Fetch capabilities for all challenges from Supabase
+    async fetchChallengeCapabilities() {
+        if (!window.supabaseManager || !this.jsonData.length) return;
+        
+        console.log('Fetching challenge capabilities...');
+        
+        try {
+            // Batch fetch capabilities - more efficient than individual requests
+            const promises = this.jsonData.map(async (challenge) => {
+                const result = await window.supabaseManager.fetchChallengeCapabilities(challenge.id);
+                if (result.success) {
+                    challenge.capabilities = result.data;
+                } else {
+                    console.warn(`Failed to fetch capabilities for challenge ${challenge.id}:`, result.error);
+                    challenge.capabilities = [];
+                }
+                return challenge;
+            });
+            
+            // Wait for all capability fetches to complete
+            await Promise.all(promises);
+            console.log('✅ Challenge capabilities loaded');
+        } catch (error) {
+            console.error('Error fetching challenge capabilities:', error);
+        }
+    }
+    
+    // Wait for Supabase to initialize
+    async waitForSupabase() {
+        if (!window.supabaseManager) return false;
+        return await window.supabaseManager.waitForInit();
     }
 
     // Applies the filters we setup 
@@ -70,25 +163,28 @@ class CardReader {
             );
         }
 
-        // Score Significance Filter (replacing Impact)
+        // Score Significance Filter
         if (this.filters.scoreSignificance && this.filters.scoreSignificance.length > 0) {
-            filteredData = filteredData.filter(item =>
-                item.significance == this.filters.scoreSignificance
-            );
+            filteredData = filteredData.filter(item => {
+                const value = Math.round(item.avg_significance || item.significance || 0);
+                return value == this.filters.scoreSignificance;
+            });
         }
 
-        // Score Complexity Filter (replacing AISuitability)
+        // Score Complexity Filter
         if (this.filters.scoreComplexity && this.filters.scoreComplexity.length > 0) {
-            filteredData = filteredData.filter(item =>
-                item.complexity == this.filters.scoreComplexity
-            );
+            filteredData = filteredData.filter(item => {
+                const value = Math.round(item.avg_complexity || item.complexity || 0);
+                return value == this.filters.scoreComplexity;
+            });
         }
 
-        // Score Readiness Filter (replacing Novelty)
+        // Score Readiness Filter
         if (this.filters.scoreReadiness && this.filters.scoreReadiness.length > 0) {
-            filteredData = filteredData.filter(item =>
-                item.readiness == this.filters.scoreReadiness
-            );
+            filteredData = filteredData.filter(item => {
+                const value = Math.round(item.avg_readiness || item.readiness || 0);
+                return value == this.filters.scoreReadiness;
+            });
         }
 
         // Add more filter conditions as needed
@@ -99,6 +195,11 @@ class CardReader {
     // Load Cards
     loadCards() {
         try {
+            // Update loading progress
+            if (window.loadingManager && window.loadingManager.isCurrentlyLoading()) {
+                window.loadingManager.renderingCards();
+            }
+            
             // Clear the existing cards in the container
             $('.card-section').empty();
 
@@ -113,8 +214,21 @@ class CardReader {
                 $('.card-section').append(card.toHTML());
             });
 
+            // Complete loading if this is the initial load
+            if (window.loadingManager) {
+                if (window.loadingManager.isCurrentlyLoading()) {
+                    console.log('Completing loading from loadCards...');
+                    window.loadingManager.completeLoading(`Loaded ${filteredData.length} challenges`);
+                } else {
+                    console.log('LoadingManager not currently loading, skipping completion');
+                }
+            }
+
         } catch (error) {
             console.error('Error loading cards:', error);
+            if (window.loadingManager) {
+                window.loadingManager.showError('Error rendering cards');
+            }
         }
     }
 }
@@ -182,8 +296,8 @@ class Card {
             return fontAwesomeIcons[capabilityId];
         }
         
-        // Default to the SVG file path if no Font Awesome icon is defined
-        return this.getColor() + "/" + iconName + '.svg';
+        // Default to using Font Awesome icon with a fallback
+        return 'fa-solid fa-cog'; // Default fallback icon
     }
 
     // Get Background Image based on sector
@@ -218,7 +332,11 @@ class Card {
 
     // Get capability at index
     getCapabilityAtIndex(index) {
-        return this.data.capabilities && this.data.capabilities.length > index ? this.data.capabilities[index] : null;
+        const capability = this.data.capabilities && this.data.capabilities.length > index ? this.data.capabilities[index] : null;
+        if (!capability && index === 0) {
+            console.log('No capabilities found for challenge:', this.data.number, this.data.capabilities);
+        }
+        return capability;
     }
 
     // Get capability name by ID
@@ -231,10 +349,12 @@ class Card {
 
     // HTML for the Star Ratings
     starRating(n) {
+        // Round the value in case we get decimals from averages
+        const rating = Math.round(n);
         const fillStar = '<img src="images/icons/fill-star.svg" alt="fill-star.svg" />';
         const emptyStar = '<img src="images/icons/star.svg" alt="star.svg" />';
 
-        switch (n) {
+        switch (rating) {
             case 1:
                 return `${fillStar} ${emptyStar} ${emptyStar}`;
             case 2:
@@ -242,7 +362,7 @@ class Card {
             case 3:
                 return `${fillStar} ${fillStar} ${fillStar}`;
             default:
-                return '';
+                return `${emptyStar} ${emptyStar} ${emptyStar}`;
         }
     }
 
@@ -286,19 +406,19 @@ class Card {
               <div class="rating-item card-${this.getColor()}-bg">
                 <h6>Significance</h6>
                 <div class="rating-icon">
-                 ${this.starRating(this.data.significance)}
+                 ${this.starRating(this.data.avg_significance || this.data.significance)}
                 </div>
               </div>
               <div class="rating-item card-${this.getColor()}-bg">
                 <h6>Complexity</h6>
                 <div class="rating-icon">
-                 ${this.starRating(this.data.complexity)}
+                 ${this.starRating(this.data.avg_complexity || this.data.complexity)}
                 </div>
               </div>
               <div class="rating-item card-${this.getColor()}-bg">
                 <h6>Readiness</h6>
                 <div class="rating-icon">
-                 ${this.starRating(this.data.readiness)}
+                 ${this.starRating(this.data.avg_readiness || this.data.readiness)}
                 </div>
               </div>
             </div>
@@ -316,6 +436,39 @@ $(document).ready(function() {
     cardReader.fetchData().then(() => {
         // Load cards after fetching data
         cardReader.loadCards();
+        
+        // Force complete loading if still showing
+        setTimeout(() => {
+            if (window.loadingManager) {
+                console.log('Force completing loading after timeout...');
+                window.loadingManager.completeLoading('Challenges loaded');
+            }
+        }, 1000);
+        
+        // Show manual button as backup after longer delay
+        setTimeout(() => {
+            const forceButton = document.getElementById('forceComplete');
+            if (window.loadingManager?.isCurrentlyLoading() && forceButton) {
+                forceButton.style.display = 'block';
+            }
+        }, 3000);
+        
+        // Emergency fallback - force show cards after 2 seconds
+        setTimeout(() => {
+            const loadingDiv = document.getElementById('loadingIndicator');
+            const cardsDiv = document.querySelector('.card-section');
+            if (loadingDiv && cardsDiv) {
+                console.log('Emergency fallback: forcing cards to show');
+                loadingDiv.style.display = 'none';
+                cardsDiv.style.display = 'block';
+                cardsDiv.style.opacity = '1';
+            }
+        }, 2000);
+    }).catch((error) => {
+        console.error('Error in fetchData:', error);
+        if (window.loadingManager) {
+            window.loadingManager.showError('Failed to load challenges');
+        }
     });
 
     setupFilters(cardReader);
