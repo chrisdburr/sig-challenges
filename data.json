@@ -575,6 +575,42 @@
             "capabilities": ["vvuq", "decision_support", "human_twin_interaction"],
             "date_added": "2025-06-03",
             "last_updated": "2025-06-03"
+        },
+        {
+            "number": 49,
+            "title": "Interoperability between federated digital twins",
+            "description": "DTs of complex systems of systems must themselves be systems of systems---sometimes referred to as federations of digital twins. To ensure good interoperability between these DTs, the syntactic and semantic objects that flow through the DT interfaces must be translatable between different systems without loss or security compromise.",
+            "sector": "Cross-Cutting",
+            "significance": 3,
+            "complexity": 2,
+            "readiness": 2,
+            "capabilities": ["twin_orchestration", "data_integration", "knowledge_representation", "system_modelling"],
+            "date_added": "2025-06-27",
+            "last_updated": "2025-06-27"
+        },
+        {
+            "number": 50,
+            "title": "Efficient DT development via correct analysis reuse",
+            "description": "Developing DTs is complex and costly. Reuse can help, but safely reusing complex tools and methods---like Failure Modes and Effects Analysis (FMEA)---is also challenging. It requires clear models of each method's contextual dependencies, inputs, and outputs. This, in turn, demands syntactic and semantic models (e.g. ontologies and languages) and mappings between generic tool representations and DT data.",
+            "sector": "Cross-Cutting",
+            "significance": 2,
+            "complexity": 3,
+            "readiness": 2,
+            "capabilities": ["knowledge_representation","anomaly_detection","decision_support","optimisation","predictive_analytics","system_modelling"],
+            "date_added": "2025-06-27",
+            "last_updated": "2025-06-27"
+        },
+        {
+            "number": 51,
+            "title": "Explainable digital twin models",
+            "description": "DTs are complex models of complex real-world systems and artefacts. To ensure trust, these models (not just the decisions made) must be explainable to domain and subject-matter experts. Implementations in classic programming languages do not provide this explainability and implementations using only generative AI do not provide the trust and robustness. Dedicated languages, ontologies and translations may be a mechanism for explainability of models.",
+            "sector": "Cross-Cutting",
+            "significance": 3,
+            "complexity": 2,
+            "readiness": 3,
+            "capabilities": ["system_modelling","knowledge_representation"],
+            "date_added": "2025-06-27",
+            "last_updated": "2025-06-27"
         }
     ]
 }
